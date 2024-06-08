@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useGetPokemonListQuery } from "../services/pokemon";
 import { Link } from "react-router-dom";
 import Spinner from "./spinner";
@@ -6,7 +6,14 @@ import Header from "./header";
 import { ShouldRender } from "./should-render";
 
 const PokemonList: React.FC = () => {
-  const { data, error, isLoading } = useGetPokemonListQuery();
+  const [page, setPage] = useState(0);
+  const { data, error, isLoading, isFetching } = useGetPokemonListQuery(page);
+
+  const handleLoadMore = () => {
+    if (data?.next) {
+      setPage((prevPage) => prevPage + 20);
+    }
+  };
 
   return (
     <>
@@ -46,6 +53,18 @@ const PokemonList: React.FC = () => {
                 </div>
               </Link>
             ))}
+            <button
+              onClick={handleLoadMore}
+              className="mb-10 col-span-full justify-self-center w-[10%] bg-blue-500 hover:bg-blue-700 text-white flex justify-center font-bold py-2 px-4
+               rounded focus:outline-none focus:shadow-outline"
+              disabled={!data?.next || isFetching}
+            >
+              {isFetching ? (
+                <Spinner className="w-6 h-6 border-white" />
+              ) : (
+                "Load More"
+              )}
+            </button>
           </div>
         </div>
       </ShouldRender>
