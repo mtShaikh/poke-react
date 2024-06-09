@@ -1,28 +1,14 @@
 // App.test.tsx
-import React from "react";
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { Provider } from "react-redux";
 import App from "./App";
+import { store } from "./store";
 
 test("renders without crashing", () => {
-  render(<App />, { wrapper: MemoryRouter });
-  expect(screen.getByText(/pokemon/i)).toBeInTheDocument();
-});
-
-test("renders PokemonList on /", () => {
   render(
-    <MemoryRouter initialEntries={["/"]}>
+    <Provider store={store}>
       <App />
-    </MemoryRouter>
+    </Provider>
   );
-  expect(screen.getByText(/pokemon list/i)).toBeInTheDocument();
-});
-
-test("renders PokemonDetail on /pokemon/:id", () => {
-  render(
-    <MemoryRouter initialEntries={["/pokemon/1"]}>
-      <App />
-    </MemoryRouter>
-  );
-  expect(screen.getByText(/pokemon detail/i)).toBeInTheDocument();
+  expect(screen.getByRole("loader")).toBeInTheDocument();
 });

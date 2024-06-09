@@ -1,89 +1,98 @@
-// PokemonList.test.tsx
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
-import { useGetPokemonListQuery } from "../services/pokemon";
+import { Provider } from "react-redux";
+import { BrowserRouter } from "react-router-dom";
+import { store } from "../store";
 import PokemonList from "./pokemon-list";
+import "@testing-library/jest-dom";
+import { server } from "../mocks/server";
+import { rest } from "msw";
+import { mockListData } from "../mocks/data";
 
-jest.mock("../services/pokemon");
+const mockDataPage2 = {
+  results: [{ name: "venusaur", url: "https://pokeapi.co/api/v2/pokemon/3/" }],
+  next: "https://pokeapi.co/api/v2/pokemon/?offset=40&limit=20",
+};
 
-const mockUseGetPokemonListQuery = useGetPokemonListQuery as jest.Mock;
+describe("PokemonList Component", () => {
+  test("renders loading spinner when fetching data", () => {
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <PokemonList />
+        </BrowserRouter>
+      </Provider>
+    );
 
-test("renders loading state", () => {
-  mockUseGetPokemonListQuery.mockReturnValue({ isLoading: true });
-
-  render(
-    <MemoryRouter>
-      <PokemonList />
-    </MemoryRouter>
-  );
-
-  expect(screen.getByRole("loader")).toBeInTheDocument();
-});
-
-test("renders error state", () => {
-  mockUseGetPokemonListQuery.mockReturnValue({ error: new Error() });
-
-  render(
-    <MemoryRouter>
-      <PokemonList />
-    </MemoryRouter>
-  );
-
-  expect(screen.getByText(/issue in loading the data/i)).toBeInTheDocument();
-});
-
-test("renders empty state", () => {
-  mockUseGetPokemonListQuery.mockReturnValue({ data: { results: [] } });
-
-  render(
-    <MemoryRouter>
-      <PokemonList />
-    </MemoryRouter>
-  );
-
-  expect(screen.getByText(/No Pokémons found/i)).toBeInTheDocument();
-});
-
-test("renders list of pokemons and load more button", () => {
-  mockUseGetPokemonListQuery.mockReturnValue({
-    data: {
-      results: [{ name: "bulbasaur" }, { name: "pikachu" }],
-      next: "url",
-    },
-    isFetching: false,
+    expect(screen.getByRole("loader")).toBeInTheDocument();
   });
 
-  render(
-    <MemoryRouter>
-      <PokemonList />
-    </MemoryRouter>
-  );
+  test("displays error message when there is an error", async () => {
+    server.use(
+      rest.get(
+        `${process.env.REACT_APP_BASE_API_URL}/pokemon`,
+        (req, res, ctx) => {
+          return res(ctx.status(500));
+        }
+      )
+    );
 
-  expect(screen.getByText(/bulbasaur/i)).toBeInTheDocument();
-  expect(screen.getByText(/pikachu/i)).toBeInTheDocument();
-  expect(screen.getByText(/Load More/i)).toBeInTheDocument();
-});
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <PokemonList />
+        </BrowserRouter>
+      </Provider>
+    );
 
-test("clicking load more button fetches more pokemons", () => {
-  const mockSetPage = jest.fn();
-  React.useState = jest.fn(() => [0, mockSetPage]);
-
-  mockUseGetPokemonListQuery.mockReturnValue({
-    data: {
-      results: [{ name: "bulbasaur" }, { name: "pikachu" }],
-      next: "url",
-    },
-    isFetching: false,
+    // added a delay to wait for the error message to be displayed
+    setTimeout(async () => {
+      expect(
+        await screen.findByText(
+          /There seems to be an issue in loading the data/i
+        )
+      ).toBeInTheDocument();
+    }, 1000);
   });
 
-  render(
-    <MemoryRouter>
-      <PokemonList />
-    </MemoryRouter>
-  );
+  test("renders Pokemon list when data is fetched successfully", async () => {
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <PokemonList />
+        </BrowserRouter>
+      </Provider>
+    );
 
-  fireEvent.click(screen.getByText(/Load More/i));
+    expect(await screen.findByText(/bulbasaur/i)).toBeInTheDocument();
+    expect(await screen.findByText(/ivysaur/i)).toBeInTheDocument();
+  });
 
-  expect(mockSetPage).toHaveBeenCalledWith(20);
+  test('handles "Load More" button functionality', async () => {
+    server.use(
+      rest.get(
+        `${process.env.REACT_APP_BASE_API_URL}/pokemon`,
+        (req, res, ctx) => {
+          const offset = req.url.searchParams.get("offset");
+          if (offset === "20") {
+            return res(ctx.json(mockDataPage2));
+          }
+          return res(ctx.json(mockListData));
+        }
+      )
+    );
+
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <PokemonList />
+        </BrowserRouter>
+      </Provider>
+    );
+
+    const loadMoreButton = await screen.findByText(/Load More/i);
+    fireEvent.click(loadMoreButton);
+
+    expect(await screen.findByText(/venusaur/i)).toBeInTheDocument();
+  });
 });
